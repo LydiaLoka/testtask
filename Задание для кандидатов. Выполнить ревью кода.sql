@@ -1,51 +1,51 @@
 create procedure syn.usp_ImportFileCustomerSeasonal
 	@ID_Record int
-AS
+AS -- 1 алиас задается без переносов, с помощью ключевого слова as
 set nocount on
 begin
-	declare @RowCount int = (select count(*) from syn.SA_CustomerSeasonal)
-	declare @ErrorMessage varchar(max)
+	declare @RowCount int = (select count(*) from syn.SA_CustomerSeasonal) 
+	declare @ErrorMessage varchar(max) -- 2. все переменные задаются в одном объявлении
 
--- Проверка на корректность загрузки
-	if not exists (
+-- Проверка на корректность загрузки -- 3.комментарий с таким же отступом, что и код, к которому относится
+	if not exists ( -- 4. В условных операторах весь блок кода смещается на 1 отступ
 	select 1
-	from syn.ImportFile as f
+	from syn.ImportFile as f -- 5. алиас if (по правилу наименования)
 	where f.ID = @ID_Record
-		and f.FlagLoaded = cast(1 as bit)
+		and f.FlagLoaded = cast(1 as bit) 
 	)
-		begin
+		begin -- 6. begin и end на одном уровне с if
 			set @ErrorMessage = 'Ошибка при загрузке файла, проверьте корректность данных'
 			raiserror(@ErrorMessage, 3, 1)
-			return
+			return -- 7. перед return пустая строка
 		end
 
 	-- Чтение из слоя временных данных
-	select
+	select -- 8. больше одного атрибута - перечисление с новой строки с одним отступом
 		c.ID as ID_dbo_Customer
 		,cst.ID as ID_CustomerSystemType
 		,s.ID as ID_Season
-		,cast(cs.DateBegin as date) as DateBegin
+		,cast(cs.DateBegin as date) as DateBegin 
 		,cast(cs.DateEnd as date) as DateEnd
 		,c_dist.ID as ID_dbo_CustomerDistributor
-		,cast(isnull(cs.FlagActive, 0) as bit) as FlagActive
+		,cast(isnull(cs.FlagActive, 0) as bit) as FlagActive 
 	into #CustomerSeasonal
 	from syn.SA_CustomerSeasonal cs
-		join dbo.Customer as c on c.UID_DS = cs.UID_DS_Customer
+		join dbo.Customer as c on c.UID_DS = cs.UID_DS_Customer --9 Все виды join-ов указываются явно
 			and c.ID_mapping_DataSource = 1
 		join dbo.Season as s on s.Name = cs.Season
 		join dbo.Customer as c_dist on c_dist.UID_DS = cs.UID_DS_CustomerDistributor
 			and c_dist.ID_mapping_DataSource = 1
-		join syn.CustomerSystemType as cst on cs.CustomerSystemType = cst.Name
+		join syn.CustomerSystemType as cst on cs.CustomerSystemType = cst.Name -- 10 Сперва указываем поле присоединяемой таблицы
 	where try_cast(cs.DateBegin as date) is not null
 		and try_cast(cs.DateEnd as date) is not null
 		and try_cast(isnull(cs.FlagActive, 0) as bit) is not null
 
-	-- Определяем некорректные записи
+	-- Определяем некорректные записи -- 11.многострочный комментарий нужно писать в конструкции /* */
 	-- Добавляем причину, по которой запись считается некорректной
 	select
-		cs.*
+		cs.* -- 12. пробелов не должно быть при вызове функции
 		,case
-			when c.ID is null then 'UID клиента отсутствует в справочнике "Клиент"'
+			when c.ID is null then 'UID клиента отсутствует в справочнике "Клиент"'  -- 13 case должен быть под when c 1 отступом
 			when c_dist.ID is null then 'UID дистрибьютора отсутствует в справочнике "Клиент"'
 			when s.ID is null then 'Сезон отсутствует в справочнике "Сезон"'
 			when cst.ID is null then 'Тип клиента отсутствует в справочнике "Тип клиента"'
@@ -57,7 +57,7 @@ begin
 	from syn.SA_CustomerSeasonal as cs
 	left join dbo.Customer as c on c.UID_DS = cs.UID_DS_Customer
 		and c.ID_mapping_DataSource = 1
-	left join dbo.Customer as c_dist on c_dist.UID_DS = cs.UID_DS_CustomerDistributor and c_dist.ID_mapping_DataSource = 1
+	left join dbo.Customer as c_dist on c_dist.UID_DS = cs.UID_DS_CustomerDistributor and c_dist.ID_mapping_DataSource = 1 -- 14. дополнительные условия переносятся на следующую строку с 1 отступом
 	left join dbo.Season as s on s.Name = cs.Season
 	left join syn.CustomerSystemType as cst on cst.Name = cs.CustomerSystemType
 	where c.ID is null
@@ -66,10 +66,10 @@ begin
 		or cst.ID is null
 		or try_cast(cs.DateBegin as date) is null
 		or try_cast(cs.DateEnd as date) is null
-		or try_cast(isnull(cs.FlagActive, 0) as bit) is null
+		or try_cast(isnull(cs.FlagActive, 0) as bit) is null --
 
 	-- Обработка данных из файла
-	merge into syn.CustomerSeasonal as cs
+	merge into syn.CustomerSeasonal as cs -- 15.into не используется
 	using (
 		select
 			cs_temp.ID_dbo_Customer
@@ -83,9 +83,9 @@ begin
 	) as s on s.ID_dbo_Customer = cs.ID_dbo_Customer
 		and s.ID_Season = cs.ID_Season
 		and s.DateBegin = cs.DateBegin
-	when matched
+	when matched -- 16. все дополнительные условия остаются на строке с "when" - then на одной строке
 		and t.ID_CustomerSystemType <> s.ID_CustomerSystemType then
-		update
+		update 
 		set ID_CustomerSystemType = s.ID_CustomerSystemType
 			,DateEnd = s.DateEnd
 			,ID_dbo_CustomerDistributor = s.ID_dbo_CustomerDistributor
@@ -96,10 +96,10 @@ begin
 
 	-- Информационное сообщение
 	begin
-		select @ErrorMessage = concat('Обработано строк: ', @RowCount)
+		select @ErrorMessage = concat('Обработано строк: ', @RowCount) -- Перечисление всех атрибутов с новой строки и одним отступом
 		raiserror(@ErrorMessage, 1, 1)
 
-		--Формирование таблицы для отчетности
+		--Формирование таблицы для отчетности -- 17 Упущен пробел в комментарии после --
 		select top 100
 			bir.Season as 'Сезон'
 			,bir.UID_DS_Customer as 'UID Клиента'
